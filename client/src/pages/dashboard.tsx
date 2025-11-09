@@ -3,14 +3,16 @@ import { useQuery } from "@tanstack/react-query";
 import { format, addDays } from "date-fns";
 import { ar } from "date-fns/locale";
 import { Link } from "wouter";
-import { Calendar, Users, BookOpen } from "lucide-react";
+import { Calendar, Users, BookOpen, LogOut } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { Student, Loo7 } from "@shared/schema";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function Dashboard() {
   const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const { user } = useAuth();
 
   const { data: dailyAssignments, isLoading } = useQuery<{
     student: Student;
@@ -20,6 +22,11 @@ export default function Dashboard() {
     queryKey: ["/api/loo7/daily", selectedDate],
   });
 
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.reload();
+  };
+
   const formattedDate = format(new Date(selectedDate), "EEEE، d MMMM yyyy", { locale: ar });
 
   return (
@@ -28,12 +35,24 @@ export default function Dashboard() {
       <header className="sticky top-0 z-10 bg-card border-b border-card-border px-4 py-4">
         <div className="max-w-2xl mx-auto">
           <div className="flex items-center justify-between mb-3">
-            <h1 className="text-2xl font-bold text-foreground">لوحة التحكم</h1>
-            <Link href="/students">
-              <Button variant="ghost" size="icon" data-testid="button-students">
-                <Users className="w-5 h-5" />
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">لوحة التحكم</h1>
+              {user && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  مرحبا بك شيخ {user.name}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Link href="/students">
+                <Button variant="ghost" size="icon" data-testid="button-students">
+                  <Users className="w-5 h-5" />
+                </Button>
+              </Link>
+              <Button variant="ghost" size="icon" onClick={handleLogout} title="تسجيل الخروج">
+                <LogOut className="w-5 h-5" />
               </Button>
-            </Link>
+            </div>
           </div>
           
           {/* Date Selector */}

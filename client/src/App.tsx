@@ -8,11 +8,30 @@ import Students from "@/pages/students";
 import CreateLoo7 from "@/pages/create-loo7";
 import StudentDaily from "@/pages/student-daily";
 import EvaluateLoo7 from "@/pages/evaluate-loo7";
+import Login from "@/pages/login";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
 import { indexedDBBackup } from "./lib/indexeddb";
+import { useAuth } from "@/hooks/use-auth";
 
 function Router() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-muted-foreground">جاري التحميل...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Login />;
+  }
+
   return (
     <Switch>
       <Route path="/" component={Dashboard} />

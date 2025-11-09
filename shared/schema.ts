@@ -3,9 +3,23 @@ import { pgTable, text, varchar, integer, date, timestamp } from "drizzle-orm/pg
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+export const sheikhs = pgTable("sheikhs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  googleId: text("google_id").notNull().unique(),
+  email: text("email").notNull(),
+  name: text("name").notNull(),
+  picture: text("picture"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type Sheikh = typeof sheikhs.$inferSelect;
+export type InsertSheikh = typeof sheikhs.$inferInsert;
+
 // Student table
 export const students = pgTable("students", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sheikId: varchar("sheikh_id").notNull().references(() => sheikhs.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   age: integer("age"),
   contact: text("contact"),

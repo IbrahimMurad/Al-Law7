@@ -1,27 +1,63 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { insertStudentSchema, insertLoo7Schema, evaluateLoo7Schema } from "@shared/schema";
+import passport from "passport";
+import { insertStudentSchema, insertLoo7Schema, evaluateLoo7Schema, type Sheikh } from "@shared/schema";
 import { format, addDays } from "date-fns";
-import { SQLiteStorage } from "./sqlite-storage";
+import type { BlobsStorage } from "./blobs-storage";
 
-export async function registerRoutes(app: Express): Promise<Server> {
-  // ==================== Student Routes ====================
-  
-  // Get all students
-  app.get("/api/students", async (_req, res) => {
+declare global {
+  namespace Express {
+    interface User extends Sheikh {}
+  }
+}
+
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  res.status(401).json({ error: "Authentication required" });
+}
+
+export async function registerRoutes(app: Express, storage: BlobsStorage): Promise<Server> {
+  app.get("/api/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+
+  app.get(
+    "/api/auth/google/callback",
+    passport.authenticate("google", { failureRedirect: "/login" }),
+    (_req, res) => {
+      res.redirect("/");
+    }
+  );
+
+  app.post("/api/auth/logout", (req, res) => {
+    req.logout((err) => {
+      if (err) {
+        return res.status(500).json({ error: "Logout failed" });
+      }
+      res.json({ success: true });
+    });
+  });
+
+  app.get("/api/auth/me", (req, res) => {
+    if (req.isAuthenticated()) {
+      res.json(req.user);
+    } else {
+      res.status(401).json({ error: "Not authenticated" });
+    }
+  });
+
+  app.get("/api/students", requireAuth, async (req, res) => {
     try {
-      const students = await storage.getAllStudents();
+      const students = await storage.getAllStudents(req.user!.id);
       res.json(students);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch students" });
     }
   });
 
-  // Get single student
-  app.get("/api/students/:id", async (req, res) => {
+  app.get("/api/students/:id", requireAuth, async (req, res) => {
     try {
-      const student = await storage.getStudent(req.params.id);
+      const student = await storage.getStudent(req.params.id, req.user!.id);
       if (!student) {
         return res.status(404).json({ error: "Student not found" });
       }
@@ -31,22 +67,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create student
-  app.post("/api/students", async (req, res) => {
+  app.post("/api/students", requireAuth, async (req, res) => {
     try {
-      const validatedData = insertStudentSchema.parse(req.body);
-      const student = await storage.createStudent(validatedData);
+      const validatedData = insertStudentSchema.omit({ sheikId: true }).parse(req.body);
+      const student = await storage.createStudent(validatedData, req.user!.id);
       res.status(201).json(student);
     } catch (error: any) {
       res.status(400).json({ error: error.message || "Invalid student data" });
     }
   });
 
-  // Update student
-  app.patch("/api/students/:id", async (req, res) => {
+  app.patch("/api/students/:id", requireAuth, async (req, res) => {
     try {
-      const validatedData = insertStudentSchema.partial().parse(req.body);
-      const student = await storage.updateStudent(req.params.id, validatedData);
+      const validatedData = insertStudentSchema.omit({ sheikId: true }).partial().parse(req.body);
+      const student = await storage.updateStudent(req.params.id, validatedData, req.user!.id);
       if (!student) {
         return res.status(404).json({ error: "Student not found" });
       }
@@ -56,10 +90,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Delete student
-  app.delete("/api/students/:id", async (req, res) => {
+  app.delete("/api/students/:id", requireAuth, async (req, res) => {
     try {
-      const deleted = await storage.deleteStudent(req.params.id);
+      const deleted = await storage.deleteStudent(req.params.id, req.user!.id);
       if (!deleted) {
         return res.status(404).json({ error: "Student not found" });
       }
@@ -69,15 +102,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // ==================== Loo7 Routes ====================
-
-  // Get daily assignments (students with loo7 for a specific date)
-  app.get("/api/loo7/daily/:date", async (req, res) => {
+  app.get("/api/loo7/daily/:date", requireAuth, async (req, res) => {
     try {
       const { date } = req.params;
-      const loo7s = await storage.getLoo7ByDate(date);
+      const loo7s = await storage.getLoo7ByDate(date, req.user!.id);
       
-      // Group by student
       const studentMap = new Map<string, { loo7Count: number; pendingCount: number }>();
       
       for (const loo7 of loo7s) {
@@ -91,8 +120,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Get student details and combine
-      const students = await storage.getAllStudents();
+      const students = await storage.getAllStudents(req.user!.id);
       const result = students
         .filter(student => studentMap.has(student.id))
         .map(student => ({
@@ -107,21 +135,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get loo7 for a specific student on a specific date
-  app.get("/api/loo7/student/:studentId/:date", async (req, res) => {
+  app.get("/api/loo7/student/:studentId/:date", requireAuth, async (req, res) => {
     try {
       const { studentId, date } = req.params;
-      const loo7s = await storage.getLoo7ByStudentAndDate(studentId, date);
+      const loo7s = await storage.getLoo7ByStudentAndDate(studentId, date, req.user!.id);
       res.json(loo7s);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch student loo7" });
     }
   });
 
-  // Get single loo7
-  app.get("/api/loo7/:id", async (req, res) => {
+  app.get("/api/loo7/:id", requireAuth, async (req, res) => {
     try {
-      const loo7 = await storage.getLoo7(req.params.id);
+      const loo7 = await storage.getLoo7(req.params.id, req.user!.id);
       if (!loo7) {
         return res.status(404).json({ error: "Loo7 not found" });
       }
@@ -131,21 +157,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create loo7
-  app.post("/api/loo7", async (req, res) => {
+  app.post("/api/loo7", requireAuth, async (req, res) => {
     try {
       const validatedData = insertLoo7Schema.parse(req.body);
-      const loo7 = await storage.createLoo7(validatedData);
+      const loo7 = await storage.createLoo7(validatedData, req.user!.id);
       res.status(201).json(loo7);
     } catch (error: any) {
       res.status(400).json({ error: error.message || "Invalid loo7 data" });
     }
   });
 
-  // Evaluate loo7
-  app.post("/api/loo7/:id/evaluate", async (req, res) => {
+  app.post("/api/loo7/:id/evaluate", requireAuth, async (req, res) => {
     try {
-      const loo7 = await storage.getLoo7(req.params.id);
+      const loo7 = await storage.getLoo7(req.params.id, req.user!.id);
       if (!loo7) {
         return res.status(404).json({ error: "Loo7 not found" });
       }
@@ -156,15 +180,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const validatedData = evaluateLoo7Schema.parse(req.body);
 
-      // Update the loo7 with evaluation
       const updatedLoo7 = await storage.updateLoo7(req.params.id, {
         status: "completed",
         score: validatedData.score,
         scoreNotes: validatedData.scoreNotes || null,
         completedAt: new Date(),
-      });
+      }, req.user!.id);
 
-      // If score is "repeat", create a new loo7 for the next scheduled day
       if (validatedData.score === "repeat") {
         const nextDate = getNextScheduledDate(loo7.recitationDate);
         await storage.createLoo7({
@@ -175,7 +197,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           surahName: loo7.surahName,
           startAyaNumber: loo7.startAyaNumber,
           endAyaNumber: loo7.endAyaNumber,
-        });
+        }, req.user!.id);
       }
 
       res.json(updatedLoo7);
@@ -184,27 +206,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // ==================== Quran API Routes ====================
-
-  // Get all data for sync (client backup)
-  app.get("/api/sync", async (_req, res) => {
+  app.get("/api/sync", requireAuth, async (req, res) => {
     try {
-      if (typeof storage.getAllData === 'function') {
-        const data = storage.getAllData();
-        res.json(data);
-      } else {
-        const students = await storage.getAllStudents();
-        const loo7s = await storage.getAllLoo7();
-        res.json({ students, loo7s });
-      }
+      const students = await storage.getAllStudents(req.user!.id);
+      const loo7s = await storage.getAllLoo7(req.user!.id);
+      res.json({ students, loo7s });
     } catch (error) {
       res.status(500).json({ error: "Failed to sync data" });
     }
   });
 
-  // ==================== Quran API Routes ====================
-
-  // Get all Surahs
   app.get("/api/quran/surahs", async (_req, res) => {
     try {
       const response = await fetch("https://api.alquran.cloud/v1/surah");
@@ -227,12 +238,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get Ayat range for a Surah
   app.get("/api/quran/ayat/:surahNumber/:startAya/:endAya", async (req, res) => {
     try {
       const { surahNumber, startAya, endAya } = req.params;
       
-      // Fetch the entire Surah (with Arabic text)
       const response = await fetch(
         `https://api.alquran.cloud/v1/surah/${surahNumber}`
       );
@@ -246,7 +255,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const start = parseInt(startAya);
       const end = parseInt(endAya);
 
-      // Filter ayat by range
       const ayat = surah.ayahs
         .filter((aya: any) => aya.numberInSurah >= start && aya.numberInSurah <= end)
         .map((aya: any) => ({
@@ -269,11 +277,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   return httpServer;
 }
 
-// Helper function to get next scheduled date (skipping Fridays)
 function getNextScheduledDate(currentDate: string): string {
   let nextDate = addDays(new Date(currentDate), 1);
   
-  // Skip Friday (day 5)
   while (nextDate.getDay() === 5) {
     nextDate = addDays(nextDate, 1);
   }
