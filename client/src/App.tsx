@@ -9,6 +9,8 @@ import CreateLoo7 from "@/pages/create-loo7";
 import StudentDaily from "@/pages/student-daily";
 import EvaluateLoo7 from "@/pages/evaluate-loo7";
 import NotFound from "@/pages/not-found";
+import { useEffect } from "react";
+import { indexedDBBackup } from "./lib/indexeddb";
 
 function Router() {
   return (
@@ -24,6 +26,38 @@ function Router() {
 }
 
 function App() {
+  useEffect(() => {
+    const initBackup = async () => {
+      try {
+        await indexedDBBackup.init();
+        
+        const response = await fetch("/api/sync");
+        if (response.ok) {
+          const data = await response.json();
+          await indexedDBBackup.syncFromServer(data);
+        }
+      } catch (error) {
+        console.error("Failed to initialize backup:", error);
+      }
+    };
+
+    initBackup();
+    
+    const syncInterval = setInterval(async () => {
+      try {
+        const response = await fetch("/api/sync");
+        if (response.ok) {
+          const data = await response.json();
+          await indexedDBBackup.syncFromServer(data);
+        }
+      } catch (error) {
+        console.error("Failed to sync backup:", error);
+      }
+    }, 30000);
+
+    return () => clearInterval(syncInterval);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
