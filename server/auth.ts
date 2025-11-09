@@ -2,7 +2,22 @@ import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import type { BlobsStorage } from "./blobs-storage";
 
+let isAuthConfigured = false;
+
 export function setupAuth(storage: BlobsStorage) {
+  if (isAuthConfigured) {
+    return;
+  }
+
+  const clientID = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  
+  if (!clientID || !clientSecret) {
+    console.warn("Google OAuth not configured: GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET missing");
+    isAuthConfigured = true;
+    return;
+  }
+
   const callbackURL = process.env.NODE_ENV === "production"
     ? `${process.env.URL}/api/auth/google/callback`
     : "http://localhost:8888/api/auth/google/callback";
@@ -10,8 +25,8 @@ export function setupAuth(storage: BlobsStorage) {
   passport.use(
     new GoogleStrategy(
       {
-        clientID: process.env.GOOGLE_CLIENT_ID!,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+        clientID,
+        clientSecret,
         callbackURL,
       },
       async (accessToken, refreshToken, profile, done) => {
@@ -47,4 +62,6 @@ export function setupAuth(storage: BlobsStorage) {
       done(error);
     }
   });
+
+  isAuthConfigured = true;
 }
