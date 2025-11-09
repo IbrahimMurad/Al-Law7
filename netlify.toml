@@ -2,9 +2,6 @@
   command = "npm ci --include=dev && npm run build"
   publish = "dist/public"
 
-[build.environment]
-  NODE_VERSION = "20"
-
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/server/:splat"
