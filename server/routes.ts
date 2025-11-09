@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertStudentSchema, insertLoo7Schema, evaluateLoo7Schema } from "@shared/schema";
 import { format, addDays } from "date-fns";
+import { SQLiteStorage } from "./sqlite-storage";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // ==================== Student Routes ====================
@@ -180,6 +181,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedLoo7);
     } catch (error: any) {
       res.status(400).json({ error: error.message || "Failed to evaluate loo7" });
+    }
+  });
+
+  // ==================== Quran API Routes ====================
+
+  // Get all data for sync (client backup)
+  app.get("/api/sync", async (_req, res) => {
+    try {
+      if (typeof storage.getAllData === 'function') {
+        const data = storage.getAllData();
+        res.json(data);
+      } else {
+        const students = await storage.getAllStudents();
+        const loo7s = await storage.getAllLoo7();
+        res.json({ students, loo7s });
+      }
+    } catch (error) {
+      res.status(500).json({ error: "Failed to sync data" });
     }
   });
 

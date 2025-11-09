@@ -17,6 +17,8 @@ export interface IStorage {
   createLoo7(loo7: InsertLoo7): Promise<Loo7>;
   updateLoo7(id: string, loo7: Partial<Loo7>): Promise<Loo7 | undefined>;
   deleteLoo7(id: string): Promise<boolean>;
+  
+  getAllData?(): { students: Student[], loo7s: Loo7[] };
 }
 
 export class MemStorage implements IStorage {
@@ -141,4 +143,8 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+import { SQLiteStorage } from "./sqlite-storage";
+
+export const storage = process.env.NODE_ENV === "production" 
+  ? new SQLiteStorage()
+  : new MemStorage();
