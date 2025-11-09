@@ -18,7 +18,11 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
   res.status(401).json({ error: "Authentication required" });
 }
 
-export async function registerRoutes(app: Express, storage: BlobsStorage): Promise<Server> {
+export async function registerRoutes(app: Express, storage: BlobsStorage | null = null): Promise<Server> {
+  // Helper to get storage from request or fallback to provided storage
+  const getStorage = (req: Request): BlobsStorage => {
+    return (req as any).storage || storage!;
+  };
   app.get("/api/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
 
   app.get(
@@ -48,7 +52,7 @@ export async function registerRoutes(app: Express, storage: BlobsStorage): Promi
 
   app.get("/api/students", requireAuth, async (req, res) => {
     try {
-      const students = await storage.getAllStudents(req.user!.id);
+      const students = await getStorage(req).getAllStudents(req.user!.id);
       res.json(students);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch students" });
@@ -57,7 +61,7 @@ export async function registerRoutes(app: Express, storage: BlobsStorage): Promi
 
   app.get("/api/students/:id", requireAuth, async (req, res) => {
     try {
-      const student = await storage.getStudent(req.params.id, req.user!.id);
+      const student = await getStorage(req).getStudent(req.params.id, req.user!.id);
       if (!student) {
         return res.status(404).json({ error: "Student not found" });
       }
@@ -70,7 +74,7 @@ export async function registerRoutes(app: Express, storage: BlobsStorage): Promi
   app.post("/api/students", requireAuth, async (req, res) => {
     try {
       const validatedData = insertStudentSchema.omit({ sheikId: true }).parse(req.body);
-      const student = await storage.createStudent(validatedData, req.user!.id);
+      const student = await getStorage(req).createStudent(validatedData, req.user!.id);
       res.status(201).json(student);
     } catch (error: any) {
       res.status(400).json({ error: error.message || "Invalid student data" });
@@ -80,7 +84,7 @@ export async function registerRoutes(app: Express, storage: BlobsStorage): Promi
   app.patch("/api/students/:id", requireAuth, async (req, res) => {
     try {
       const validatedData = insertStudentSchema.omit({ sheikId: true }).partial().parse(req.body);
-      const student = await storage.updateStudent(req.params.id, validatedData, req.user!.id);
+      const student = await getStorage(req).updateStudent(req.params.id, validatedData, req.user!.id);
       if (!student) {
         return res.status(404).json({ error: "Student not found" });
       }
@@ -92,7 +96,7 @@ export async function registerRoutes(app: Express, storage: BlobsStorage): Promi
 
   app.delete("/api/students/:id", requireAuth, async (req, res) => {
     try {
-      const deleted = await storage.deleteStudent(req.params.id, req.user!.id);
+      const deleted = await getStorage(req).deleteStudent(req.params.id, req.user!.id);
       if (!deleted) {
         return res.status(404).json({ error: "Student not found" });
       }
@@ -105,7 +109,7 @@ export async function registerRoutes(app: Express, storage: BlobsStorage): Promi
   app.get("/api/loo7/daily/:date", requireAuth, async (req, res) => {
     try {
       const { date } = req.params;
-      const loo7s = await storage.getLoo7ByDate(date, req.user!.id);
+      const loo7s = await getStorage(req).getLoo7ByDate(date, req.user!.id);
       
       const studentMap = new Map<string, { loo7Count: number; pendingCount: number }>();
       
@@ -120,7 +124,7 @@ export async function registerRoutes(app: Express, storage: BlobsStorage): Promi
         }
       }
 
-      const students = await storage.getAllStudents(req.user!.id);
+      const students = await getStorage(req).getAllStudents(req.user!.id);
       const result = students
         .filter(student => studentMap.has(student.id))
         .map(student => ({
@@ -138,7 +142,7 @@ export async function registerRoutes(app: Express, storage: BlobsStorage): Promi
   app.get("/api/loo7/student/:studentId/:date", requireAuth, async (req, res) => {
     try {
       const { studentId, date } = req.params;
-      const loo7s = await storage.getLoo7ByStudentAndDate(studentId, date, req.user!.id);
+      const loo7s = await getStorage(req).getLoo7ByStudentAndDate(studentId, date, req.user!.id);
       res.json(loo7s);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch student loo7" });
@@ -147,7 +151,7 @@ export async function registerRoutes(app: Express, storage: BlobsStorage): Promi
 
   app.get("/api/loo7/:id", requireAuth, async (req, res) => {
     try {
-      const loo7 = await storage.getLoo7(req.params.id, req.user!.id);
+      const loo7 = await getStorage(req).getLoo7(req.params.id, req.user!.id);
       if (!loo7) {
         return res.status(404).json({ error: "Loo7 not found" });
       }
@@ -160,7 +164,7 @@ export async function registerRoutes(app: Express, storage: BlobsStorage): Promi
   app.post("/api/loo7", requireAuth, async (req, res) => {
     try {
       const validatedData = insertLoo7Schema.parse(req.body);
-      const loo7 = await storage.createLoo7(validatedData, req.user!.id);
+      const loo7 = await getStorage(req).createLoo7(validatedData, req.user!.id);
       res.status(201).json(loo7);
     } catch (error: any) {
       res.status(400).json({ error: error.message || "Invalid loo7 data" });
@@ -169,7 +173,7 @@ export async function registerRoutes(app: Express, storage: BlobsStorage): Promi
 
   app.post("/api/loo7/:id/evaluate", requireAuth, async (req, res) => {
     try {
-      const loo7 = await storage.getLoo7(req.params.id, req.user!.id);
+      const loo7 = await getStorage(req).getLoo7(req.params.id, req.user!.id);
       if (!loo7) {
         return res.status(404).json({ error: "Loo7 not found" });
       }
@@ -180,7 +184,7 @@ export async function registerRoutes(app: Express, storage: BlobsStorage): Promi
 
       const validatedData = evaluateLoo7Schema.parse(req.body);
 
-      const updatedLoo7 = await storage.updateLoo7(req.params.id, {
+      const updatedLoo7 = await getStorage(req).updateLoo7(req.params.id, {
         status: "completed",
         score: validatedData.score,
         scoreNotes: validatedData.scoreNotes || null,
@@ -189,7 +193,7 @@ export async function registerRoutes(app: Express, storage: BlobsStorage): Promi
 
       if (validatedData.score === "repeat") {
         const nextDate = getNextScheduledDate(loo7.recitationDate);
-        await storage.createLoo7({
+        await getStorage(req).createLoo7({
           studentId: loo7.studentId,
           type: loo7.type,
           recitationDate: nextDate,
@@ -208,8 +212,8 @@ export async function registerRoutes(app: Express, storage: BlobsStorage): Promi
 
   app.get("/api/sync", requireAuth, async (req, res) => {
     try {
-      const students = await storage.getAllStudents(req.user!.id);
-      const loo7s = await storage.getAllLoo7(req.user!.id);
+      const students = await getStorage(req).getAllStudents(req.user!.id);
+      const loo7s = await getStorage(req).getAllLoo7(req.user!.id);
       res.json({ students, loo7s });
     } catch (error) {
       res.status(500).json({ error: "Failed to sync data" });

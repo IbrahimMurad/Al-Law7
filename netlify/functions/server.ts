@@ -2,12 +2,13 @@ import serverless from "serverless-http";
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import passport from "passport";
+import { connectLambda } from "@netlify/blobs";
 import { registerRoutes } from "../../server/routes";
 import { BlobsStorage } from "../../server/blobs-storage";
 import { setupAuth } from "../../server/auth";
 
 const app = express();
-const storage = new BlobsStorage();
+let storage: BlobsStorage | null = null;
 
 app.use(session({
   secret: process.env.SESSION_SECRET || "quran-tracker-secret-change-in-production",
@@ -22,8 +23,6 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-setupAuth(storage);
-
 declare module 'http' {
   interface IncomingMessage {
     rawBody: unknown
@@ -36,6 +35,14 @@ app.use(express.json({
   }
 }));
 app.use(express.urlencoded({ extended: false }));
+
+// Middleware to attach current storage instance to request
+app.use((req, res, next) => {
+  if (storage) {
+    (req as any).storage = storage;
+  }
+  next();
+});
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -73,6 +80,7 @@ let isInitialized = false;
 async function initializeApp() {
   if (isInitialized && appHandler) return appHandler;
   
+  // Routes will use storage from request object (attached via middleware)
   await registerRoutes(app, storage);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -90,6 +98,16 @@ async function initializeApp() {
 }
 
 export const handler = async (event: any, context: any) => {
+  // Connect Netlify Blobs to the Lambda event context for this invocation
+  connectLambda(event);
+  
+  // Initialize storage for this invocation (after connecting Lambda context)
+  // This will be attached to requests via middleware
+  storage = new BlobsStorage();
+  
+  // Update auth setup with new storage instance
+  setupAuth(storage);
+  
   const serverlessHandler = await initializeApp();
   return serverlessHandler(event, context);
 };
