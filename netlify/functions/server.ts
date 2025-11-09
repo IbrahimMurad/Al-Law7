@@ -1,9 +1,28 @@
 import serverless from "serverless-http";
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
+import passport from "passport";
 import { registerRoutes } from "../../server/routes";
+import { BlobsStorage } from "../../server/blobs-storage";
+import { setupAuth } from "../../server/auth";
 
-// Create Express app
 const app = express();
+const storage = new BlobsStorage();
+
+app.use(session({
+  secret: process.env.SESSION_SECRET || "quran-tracker-secret-change-in-production",
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: true,
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  },
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+setupAuth(storage);
 
 declare module 'http' {
   interface IncomingMessage {
@@ -48,25 +67,20 @@ app.use((req, res, next) => {
   next();
 });
 
-// Initialize routes
 let appHandler: ReturnType<typeof serverless> | null = null;
 let isInitialized = false;
 
 async function initializeApp() {
   if (isInitialized && appHandler) return appHandler;
   
-  // Register API routes (we don't need the Server return value for Netlify Functions)
-  await registerRoutes(app);
+  await registerRoutes(app, storage);
 
-  // Error handler
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
     res.status(status).json({ message });
   });
 
-  // Wrap Express app with serverless-http
-  // Note: Static files are served directly by Netlify, not through this function
   appHandler = serverless(app, {
     binary: ['image/*', 'font/*', 'application/javascript', 'application/json'],
   });
@@ -75,9 +89,7 @@ async function initializeApp() {
   return appHandler;
 }
 
-// Export the handler
 export const handler = async (event: any, context: any) => {
   const serverlessHandler = await initializeApp();
   return serverlessHandler(event, context);
 };
-

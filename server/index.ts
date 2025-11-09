@@ -1,8 +1,28 @@
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
+import passport from "passport";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { BlobsStorage } from "./blobs-storage";
+import { setupAuth } from "./auth";
 
 const app = express();
+const storage = new BlobsStorage();
+
+app.use(session({
+  secret: process.env.SESSION_SECRET || "quran-tracker-secret-change-in-production",
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  },
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+setupAuth(storage);
 
 declare module 'http' {
   interface IncomingMessage {
@@ -47,7 +67,7 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  const server = await registerRoutes(app);
+  const server = await registerRoutes(app, storage);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
