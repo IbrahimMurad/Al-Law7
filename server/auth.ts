@@ -5,6 +5,14 @@ import type { BlobsStorage } from "./blobs-storage";
 let isAuthConfigured = false;
 
 export function setupAuth(storage: BlobsStorage) {
+  // Check if strategy is already registered
+  const existingStrategy = (passport as any)._strategies?.google;
+  if (existingStrategy) {
+    isAuthConfigured = true;
+    return;
+  }
+
+  // If we've already tried to configure but failed, don't try again
   if (isAuthConfigured) {
     return;
   }
@@ -14,7 +22,7 @@ export function setupAuth(storage: BlobsStorage) {
   
   if (!clientID || !clientSecret) {
     console.warn("Google OAuth not configured: GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET missing");
-    isAuthConfigured = true;
+    // Don't set isAuthConfigured = true here, so we can retry if env vars become available
     return;
   }
 
@@ -22,46 +30,55 @@ export function setupAuth(storage: BlobsStorage) {
     ? `${process.env.URL}/api/auth/google/callback`
     : "http://localhost:8888/api/auth/google/callback";
 
-  passport.use(
-    new GoogleStrategy(
-      {
-        clientID,
-        clientSecret,
-        callbackURL,
-      },
-      async (accessToken, refreshToken, profile, done) => {
-        try {
-          let sheikh = await storage.getSheikhByGoogleId(profile.id);
+  try {
+    passport.use(
+      new GoogleStrategy(
+        {
+          clientID,
+          clientSecret,
+          callbackURL,
+        },
+        async (accessToken, refreshToken, profile, done) => {
+          try {
+            let sheikh = await storage.getSheikhByGoogleId(profile.id);
 
-          if (!sheikh) {
-            sheikh = await storage.createSheikh({
-              googleId: profile.id,
-              email: profile.emails?.[0]?.value || "",
-              name: profile.displayName,
-              picture: profile.photos?.[0]?.value,
-            });
+            if (!sheikh) {
+              sheikh = await storage.createSheikh({
+                googleId: profile.id,
+                email: profile.emails?.[0]?.value || "",
+                name: profile.displayName,
+                picture: profile.photos?.[0]?.value,
+              });
+            }
+
+            return done(null, sheikh);
+          } catch (error) {
+            return done(error as Error);
           }
-
-          return done(null, sheikh);
-        } catch (error) {
-          return done(error as Error);
         }
+      )
+    );
+
+    passport.serializeUser((user: any, done) => {
+      done(null, user.id);
+    });
+
+    passport.deserializeUser(async (id: string, done) => {
+      try {
+        const sheikh = await storage.getSheikh(id);
+        done(null, sheikh);
+      } catch (error) {
+        done(error);
       }
-    )
-  );
+    });
 
-  passport.serializeUser((user: any, done) => {
-    done(null, user.id);
-  });
+    isAuthConfigured = true;
+  } catch (error) {
+    console.error("Failed to setup Google OAuth strategy:", error);
+    // Don't set isAuthConfigured = true on error, so we can retry
+  }
+}
 
-  passport.deserializeUser(async (id: string, done) => {
-    try {
-      const sheikh = await storage.getSheikh(id);
-      done(null, sheikh);
-    } catch (error) {
-      done(error);
-    }
-  });
-
-  isAuthConfigured = true;
+export function isAuthAvailable(): boolean {
+  return !!(passport as any)._strategies?.google;
 }

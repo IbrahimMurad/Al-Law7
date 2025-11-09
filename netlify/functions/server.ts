@@ -101,11 +101,13 @@ export const handler = async (event: any, context: any) => {
   // Connect Netlify Blobs to the Lambda event context for this invocation
   connectLambda(event);
   
-  // Initialize storage and auth once
+  // Initialize storage once per container
   if (!storage) {
     storage = new BlobsStorage();
-    setupAuth(storage);
   }
+  
+  // Always try to setup auth (it will skip if already configured)
+  setupAuth(storage);
   
   const serverlessHandler = await initializeApp();
   return serverlessHandler(event, context);

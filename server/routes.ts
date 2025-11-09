@@ -4,6 +4,7 @@ import passport from "passport";
 import { insertStudentSchema, insertLoo7Schema, evaluateLoo7Schema, type Sheikh } from "@shared/schema";
 import { format, addDays } from "date-fns";
 import type { BlobsStorage } from "./blobs-storage";
+import { isAuthAvailable } from "./auth";
 
 declare global {
   namespace Express {
@@ -23,11 +24,21 @@ export async function registerRoutes(app: Express, storage: BlobsStorage | null 
   const getStorage = (req: Request): BlobsStorage => {
     return (req as any).storage || storage!;
   };
-  app.get("/api/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+  app.get("/api/auth/google", (req, res, next) => {
+    if (!isAuthAvailable()) {
+      return res.status(503).json({ error: "Google OAuth is not configured. Please check environment variables." });
+    }
+    passport.authenticate("google", { scope: ["profile", "email"] })(req, res, next);
+  });
 
   app.get(
     "/api/auth/google/callback",
-    passport.authenticate("google", { failureRedirect: "/login" }),
+    (req, res, next) => {
+      if (!isAuthAvailable()) {
+        return res.status(503).redirect("/login?error=oauth_not_configured");
+      }
+      passport.authenticate("google", { failureRedirect: "/login" })(req, res, next);
+    },
     (_req, res) => {
       res.redirect("/");
     }
