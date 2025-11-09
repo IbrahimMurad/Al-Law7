@@ -6,19 +6,35 @@ import { connectLambda } from "@netlify/blobs";
 import { registerRoutes } from "../../server/routes";
 import { BlobsStorage } from "../../server/blobs-storage";
 import { setupAuth } from "../../server/auth";
+import { BlobsSessionStore } from "../../server/blobs-session-store";
 
 const app = express();
 let storage: BlobsStorage | null = null;
+let sessionStore: BlobsSessionStore | null = null;
 
-app.use(session({
-  secret: process.env.SESSION_SECRET || "quran-tracker-secret-change-in-production",
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: true,
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  },
-}));
+// Session configuration
+const getSessionMiddleware = () => {
+  if (!sessionStore) {
+    sessionStore = new BlobsSessionStore();
+  }
+  return session({
+    store: sessionStore,
+    secret: process.env.SESSION_SECRET || "quran-tracker-secret-change-in-production",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: true,
+      httpOnly: true,
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    },
+  });
+};
+
+// Session middleware - will be initialized after connectLambda in handler
+app.use((req, res, next) => {
+  return getSessionMiddleware()(req, res, next);
+});
 
 app.use(passport.initialize());
 app.use(passport.session());
@@ -100,6 +116,12 @@ async function initializeApp() {
 export const handler = async (event: any, context: any) => {
   // Connect Netlify Blobs to the Lambda event context for this invocation
   connectLambda(event);
+  
+  // Initialize session store after connectLambda (required for Blobs to work)
+  // This will be used by the session middleware on first request
+  if (!sessionStore) {
+    sessionStore = new BlobsSessionStore();
+  }
   
   // Initialize storage once per container
   if (!storage) {

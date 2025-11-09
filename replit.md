@@ -12,23 +12,24 @@ Preferred communication style: Simple, everyday language.
 
 ### Frontend Architecture
 
-**Framework & Routing**
+#### Framework & Routing
+
 - React 18 with TypeScript for type-safe component development
 - Wouter for lightweight client-side routing (no React Router)
 - Vite as build tool and development server with hot module replacement
 
-**UI Component System**
+#### UI Component System
 - Shadcn UI components (New York style variant) built on Radix UI primitives
 - Material Design 3 principles for mobile-first, RTL-optimized layouts
 - Tailwind CSS for utility-first styling with custom design tokens
 - Component aliases configured for clean imports (`@/components`, `@/lib`, etc.)
 
-**State Management**
+#### State Management
 - TanStack Query (React Query) for server state management and caching
 - React Hook Form with Zod resolvers for form validation
 - Local component state with React hooks
 
-**Design System**
+#### Design System
 - RTL (right-to-left) layout by default for Arabic text
 - Custom typography: Noto Sans Arabic for UI, Amiri Quran for Quranic text
 - Mobile-optimized with minimum 48px touch targets
@@ -36,12 +37,12 @@ Preferred communication style: Simple, everyday language.
 
 ### Backend Architecture
 
-**Server Framework**
+#### Server Framework
 - Express.js with TypeScript for REST API endpoints
 - ESM (ES Modules) throughout the codebase
 - Custom middleware for request logging and JSON response capture
 
-**API Structure**
+#### API Structure
 - RESTful endpoints organized by resource:
   - `/api/students` - Student CRUD operations
   - `/api/loo7` - Manuscript assignment management
@@ -49,26 +50,28 @@ Preferred communication style: Simple, everyday language.
 - Request validation using Zod schemas shared between client and server
 - Centralized error handling with appropriate HTTP status codes
 
-**Data Access Layer**
+#### Data Access Layer
 - Storage abstraction interface (`IStorage`) allowing multiple implementations
 - In-memory storage implementation (`MemStorage`) for development
 - Designed to swap in database implementations (PostgreSQL via Drizzle ORM configured but not currently connected)
 
 ### Database Schema
 
-**Design Pattern**
+#### Design Pattern
 - Drizzle ORM configured for PostgreSQL with schema-first approach
 - Schema definitions in TypeScript generate both database migrations and Zod validators
 - Cascade deletion for student-loo7 relationships
 
-**Core Entities**
+#### Core Entities
 
-*Students Table*
+##### Students Table
+
 - UUID primary key with server-generated defaults
 - Fields: name (required), age, contact info, notes (all optional except name)
 - Timestamps for creation and updates
 
-*Loo7s (Manuscripts) Table*
+##### Loo7s (Manuscripts) Table
+
 - UUID primary key
 - Foreign key to students with cascade delete
 - Loo7 type enum: "new", "near_past", "far_past" (memorization recency)
@@ -78,7 +81,7 @@ Preferred communication style: Simple, everyday language.
 
 ### External Dependencies
 
-**Quran Data API**
+#### Quran Data API
 - External API integration for retrieving Quran text (surahs and ayas)
 - Data includes surah metadata (names, numbers, aya counts)
 - Used for displaying verses during assignment creation and evaluation
