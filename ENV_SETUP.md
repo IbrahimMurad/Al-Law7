@@ -6,7 +6,7 @@ This application requires the following environment variables for Google OAuth a
 
 1. **GOOGLE_CLIENT_ID**: Your Google OAuth 2.0 Client ID
 2. **GOOGLE_CLIENT_SECRET**: Your Google OAuth 2.0 Client Secret
-3. **SESSION_SECRET**: A secure random string for session encryption (optional in development, required in production)
+3. **SESSION_SECRET**: A secure random string for session encryption (required)
 
 ## Setting up Google OAuth
 
@@ -16,24 +16,11 @@ This application requires the following environment variables for Google OAuth a
 4. Go to "Credentials" → "Create Credentials" → "OAuth 2.0 Client ID"
 5. Configure the OAuth consent screen
 6. For Application type, select "Web application"
-7. Add authorized redirect URIs:
-   - Development: `http://localhost:8888/api/auth/google/callback`
-   - Production: `https://your-netlify-domain.netlify.app/api/auth/google/callback`
+7. Add authorized redirect URI:
+   - `https://your-netlify-domain.netlify.app/api/auth/google/callback`
 8. Copy the Client ID and Client Secret
 
 ## Netlify Configuration
-
-### Local Development
-
-Create a `.env` file in the root directory:
-
-```
-GOOGLE_CLIENT_ID=your_client_id_here
-GOOGLE_CLIENT_SECRET=your_client_secret_here
-SESSION_SECRET=your_random_secret_here
-```
-
-### Production (Netlify)
 
 1. Go to your Netlify site dashboard
 2. Navigate to "Site settings" → "Environment variables"

@@ -145,6 +145,4 @@ export class MemStorage implements IStorage {
 
 import { SQLiteStorage } from "./sqlite-storage";
 
-export const storage = process.env.NODE_ENV === "production" 
-  ? new SQLiteStorage()
-  : new MemStorage();
+export const storage = new SQLiteStorage();

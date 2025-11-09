@@ -26,9 +26,7 @@ export function setupAuth(storage: BlobsStorage) {
     return;
   }
 
-  const callbackURL = process.env.NODE_ENV === "production"
-    ? `${process.env.URL}/api/auth/google/callback`
-    : "http://localhost:8888/api/auth/google/callback";
+  const callbackURL = `${process.env.URL}/api/auth/google/callback`;
 
   try {
     passport.use(
