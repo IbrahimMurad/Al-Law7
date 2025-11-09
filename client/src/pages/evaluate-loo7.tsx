@@ -163,18 +163,18 @@ export default function EvaluateLoo7() {
                 ))}
               </div>
             ) : ayat && ayat.length > 0 ? (
-              <div className="space-y-4" dir="rtl">
+              <span dir="rtl">
                 {ayat.map((aya) => (
-                  <div key={aya.number} className="text-right">
-                    <p className="font-quran text-xl leading-loose text-foreground" data-testid={`aya-${aya.numberInSurah}`}>
+                  <span key={aya.number} className="text-right">
+                    <p className="inline font-quran text-xl leading-loose text-foreground" data-testid={`aya-${aya.numberInSurah}`}>
                       {aya.text}
                       <span className="inline-block mx-2 text-base text-primary font-sans">
                         ﴿{convertToArabicNumerals(aya.numberInSurah)}﴾
                       </span>
                     </p>
-                  </div>
+                  </span>
                 ))}
-              </div>
+              </span>
             ) : (
               <p className="text-muted-foreground text-center py-8">
                 لا يمكن تحميل النص القرآني
